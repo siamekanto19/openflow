@@ -46,7 +46,7 @@ No cloud. No API keys. No subscriptions. Just fast, private dictation.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/openflow.git
+git clone https://github.com/siamekanto19/openflow.git
 cd openflow
 
 # Build and run
