@@ -32,4 +32,5 @@ Package.resolved
 
 # Misc
 *.log
-.env
+config.bat
+node_modules
