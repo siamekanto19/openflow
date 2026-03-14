@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="OpenFlow/Resources/AppIcon.icns" width="128" alt="OpenFlow icon" />
+  <img src="OpenFlow/Resources/AppIcon.png" width="128" alt="OpenFlow icon" />
 </p>
 
 <h1 align="center">OpenFlow</h1>
