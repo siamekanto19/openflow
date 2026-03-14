@@ -108,7 +108,7 @@ struct HUDContentView: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 16) {
             // Cancel button (X) — cancels entire session
             Button {
                 NotificationCenter.default.post(name: .hudCancelTapped, object: nil)
@@ -163,6 +163,7 @@ struct HUDContentView: View {
 extension Notification.Name {
     static let hudCancelTapped = Notification.Name("com.openflow.hudCancelTapped")
     static let hudStopTapped = Notification.Name("com.openflow.hudStopTapped")
+    static let menuBarStartRecording = Notification.Name("com.openflow.menuBarStartRecording")
 }
 
 // MARK: - Wave Bar

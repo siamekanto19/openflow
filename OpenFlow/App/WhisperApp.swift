@@ -23,13 +23,6 @@ struct OpenFlowApp: App {
                 .environment(appDelegate.container.permissionCoordinator)
                 .environmentObject(appDelegate.container.settingsManager)
         }
-
-        // History window
-        Window("Transcript History", id: "history") {
-            HistoryView()
-                .environment(appDelegate.container.stateStore)
-        }
-        .defaultSize(width: 700, height: 500)
     }
 }
 
@@ -72,6 +65,7 @@ private struct MenuBarLabel: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let container = DependencyContainer()
     private var coordinator: AppCoordinator?
+    private var onboardingWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppLogger.general.info("OpenFlow app launched")
@@ -92,24 +86,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showOnboarding() {
-        let onboardingWindow = NSWindow(
+        let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 520, height: 680),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
-        onboardingWindow.title = "Welcome to OpenFlow"
-        onboardingWindow.center()
-        onboardingWindow.contentView = NSHostingView(
+        window.title = "Welcome to OpenFlow"
+        window.center()
+        window.contentView = NSHostingView(
             rootView: OnboardingView(
                 permissionCoordinator: container.permissionCoordinator,
-                onComplete: { [weak onboardingWindow] in
+                onComplete: { [weak self] in
                     UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
-                    onboardingWindow?.close()
+                    self?.onboardingWindow?.close()
+                    self?.onboardingWindow = nil
+                    // App continues running — MenuBarExtra keeps it alive
                 }
             )
         )
-        onboardingWindow.makeKeyAndOrderFront(nil)
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+
+        // Retain the window so it doesn't get deallocated
+        self.onboardingWindow = window
     }
 }

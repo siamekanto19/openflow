@@ -17,6 +17,7 @@ final class AppCoordinator {
     private var modelReloadObserver: NSObjectProtocol?
     private var hudCancelObserver: NSObjectProtocol?
     private var hudStopObserver: NSObjectProtocol?
+    private var menuBarStartObserver: NSObjectProtocol?
 
     init(
         stateStore: RecordingStateStore,
@@ -97,6 +98,16 @@ final class AppCoordinator {
             }
         }
 
+        menuBarStartObserver = NotificationCenter.default.addObserver(
+            forName: .menuBarStartRecording,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.startDictation()
+            }
+        }
+
         AppLogger.general.info("AppCoordinator setup complete")
     }
 
@@ -110,6 +121,9 @@ final class AppCoordinator {
             NotificationCenter.default.removeObserver(observer)
         }
         if let observer = hudStopObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = menuBarStartObserver {
             NotificationCenter.default.removeObserver(observer)
         }
         AppLogger.general.info("AppCoordinator teardown complete")
@@ -135,6 +149,7 @@ final class AppCoordinator {
         AppLogger.general.info("Dictation cancelled by user")
         audioCaptureService.cancelRecording()
         stateStore.reset()
+        hotkeyManager.resetRecordingState()
         hudController?.hide()
     }
 
@@ -212,9 +227,6 @@ final class AppCoordinator {
             let profile = settingsManager.formattingProfile
             let processedText = transcriptProcessor.process(result.rawText, profile: profile)
 
-            // 4. Get the focused app name before insertion
-            let sourceAppName = NSWorkspace.shared.frontmostApplication?.localizedName
-
             // 5. Insert text
             stateStore.setInserting()
             let insertionMethod = settingsManager.insertionMethod
@@ -222,19 +234,7 @@ final class AppCoordinator {
 
             AppLogger.insertion.info("Text inserted successfully via \(insertionMethod.rawValue)")
 
-            // 6. Save to history
-            let record = TranscriptRecord(
-                rawText: result.rawText,
-                processedText: processedText,
-                sourceAppName: sourceAppName,
-                durationMs: result.durationMs,
-                languageCode: settingsManager.language,
-                insertionMethod: insertionMethod,
-                status: .success
-            )
-            try await transcriptRepository.save(record)
-
-            // 7. Show success
+            // 6. Done
             stateStore.setSuccess(processedText)
             AppLogger.general.info("Dictation flow completed successfully")
 
@@ -251,6 +251,8 @@ final class AppCoordinator {
             stateStore.setFailure(error.localizedDescription)
         }
 
+        // Reset hotkey state so next press works immediately
+        hotkeyManager.resetRecordingState()
         // Hide HUD immediately
         hudController?.hide()
     }

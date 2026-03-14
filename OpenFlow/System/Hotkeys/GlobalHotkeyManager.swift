@@ -49,6 +49,11 @@ final class GlobalHotkeyManager {
         AppLogger.hotkey.info("Global hotkey unregistered")
     }
 
+    /// Reset the internal recording state flag (e.g. after external cancel/stop)
+    func resetRecordingState() {
+        isRecording = false
+    }
+
     func updateHotkey(keyCode: UInt32, modifiers: NSEvent.ModifierFlags) {
         settingsManager.hotkeyKeyCode = keyCode
         registerHotkey()

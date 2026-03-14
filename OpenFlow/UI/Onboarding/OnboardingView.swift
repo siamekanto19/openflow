@@ -5,7 +5,16 @@ struct OnboardingView: View {
     let onComplete: () -> Void
 
     @State private var currentStep = 0
-    private let totalSteps = 4
+    @State private var availableModels: [ModelManager.ModelInfo] = []
+    @State private var isDownloading = false
+    @State private var downloadingModelName: String?
+    @State private var downloadError: String?
+    @State private var launchAtLogin = false
+
+    private let totalSteps = 5
+    private let modelManager = ModelManager()
+
+    private var hasModel: Bool { !availableModels.isEmpty }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,7 +36,8 @@ struct OnboardingView: View {
                 case 0: welcomeStep
                 case 1: microphoneStep
                 case 2: accessibilityStep
-                case 3: readyStep
+                case 3: modelStep
+                case 4: readyStep
                 default: welcomeStep
                 }
             }
@@ -52,8 +62,13 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
+                    .disabled(currentStep == 3 && !hasModel)
                 } else {
                     Button("Get Started") {
+                        // Apply launch at login preference
+                        if launchAtLogin {
+                            LaunchAtLoginHelper.setEnabled(true)
+                        }
                         onComplete()
                     }
                     .buttonStyle(.borderedProminent)
@@ -65,6 +80,11 @@ struct OnboardingView: View {
             .padding(.top, 8)
         }
         .frame(width: 520, height: 680)
+        .onAppear { refreshModels() }
+    }
+
+    private func refreshModels() {
+        availableModels = modelManager.availableModels()
     }
 
     // MARK: - Steps
@@ -187,6 +207,98 @@ struct OnboardingView: View {
         .padding(24)
     }
 
+    private var modelStep: some View {
+        VStack(spacing: 20) {
+            Spacer()
+
+            Image(systemName: hasModel ? "checkmark.circle.fill" : "arrow.down.circle.fill")
+                .font(.system(size: 56, weight: .light))
+                .foregroundStyle(hasModel ? .green : .teal)
+
+            VStack(spacing: 8) {
+                Text("Download a Model")
+                    .font(.system(size: 22, weight: .semibold))
+
+                Text("A speech recognition model is required to use OpenFlow.\nChoose a model below to download it.")
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .frame(maxWidth: 380)
+            }
+
+            if hasModel {
+                Label("Model ready — \(availableModels.first?.name ?? "")", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.callout)
+            }
+
+            VStack(spacing: 8) {
+                ForEach(ModelManager.downloadableModels, id: \.name) { model in
+                    let isInstalled = availableModels.contains(where: { $0.name == model.name })
+                    let isThis = isDownloading && downloadingModelName == model.name
+
+                    HStack {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(model.displayName)
+                                .font(.system(size: 13, weight: .medium))
+                            Text(model.size)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        if isInstalled {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else if isThis {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Downloading…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Button("Download") {
+                                downloadModel(name: model.name)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .tint(.teal)
+                            .disabled(isDownloading)
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.primary.opacity(0.03))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(isInstalled ? Color.green.opacity(0.3) : Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+                }
+            }
+            .padding(.horizontal, 40)
+
+            if let error = downloadError {
+                Label(error, systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+
+            if !hasModel {
+                Text("You must download at least one model to continue.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            Spacer()
+        }
+        .padding(24)
+    }
+
     private var readyStep: some View {
         VStack(spacing: 20) {
             Spacer()
@@ -216,24 +328,48 @@ struct OnboardingView: View {
             .padding(.horizontal, 36)
             .padding(.top, 4)
 
-            if !permissionCoordinator.allPermissionsGranted {
+            // Launch at login toggle
+            Toggle(isOn: $launchAtLogin) {
                 Label {
-                    Text("Some permissions are missing — grant them later in Settings")
-                        .font(.caption)
+                    Text("Launch OpenFlow at login")
+                        .font(.system(size: 13))
                 } icon: {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                    Image(systemName: "power")
+                        .foregroundStyle(.green)
                 }
-                .padding(10)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(.orange.opacity(0.06))
-                )
             }
+            .toggleStyle(.switch)
+            .padding(.horizontal, 40)
+            .padding(.top, 4)
 
             Spacer()
         }
         .padding(24)
+    }
+
+    // MARK: - Model Download
+
+    private func downloadModel(name: String) {
+        isDownloading = true
+        downloadingModelName = name
+        downloadError = nil
+
+        Task {
+            do {
+                try await modelManager.downloadModel(name: name) { _ in }
+                refreshModels()
+                // Auto-select the downloaded model
+                if let model = availableModels.first(where: { $0.name == name }) {
+                    UserDefaults.standard.set(model.name, forKey: "selectedModelName")
+                    UserDefaults.standard.set(model.url.path, forKey: "modelPath")
+                    NotificationCenter.default.post(name: .modelDownloaded, object: nil)
+                }
+            } catch {
+                downloadError = error.localizedDescription
+            }
+            isDownloading = false
+            downloadingModelName = nil
+        }
     }
 }
 

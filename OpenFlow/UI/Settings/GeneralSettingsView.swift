@@ -55,11 +55,9 @@ struct GeneralSettingsView: View {
                             .foregroundStyle(.green)
                     }
                 }
-                .disabled(true)
-
-                Text("Launch at login will be available in a future update.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                .onChange(of: settingsManager.launchAtLogin) { _, newValue in
+                    LaunchAtLoginHelper.setEnabled(newValue)
+                }
             } header: {
                 Text("Startup")
             }

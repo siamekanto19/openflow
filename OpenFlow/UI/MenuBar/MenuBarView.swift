@@ -1,26 +1,20 @@
 import SwiftUI
 
-/// Menu bar popover — clean, native macOS feel with colored icons
+/// Menu bar popover — clean, native macOS feel
 struct MenuBarView: View {
     @Environment(RecordingStateStore.self) private var stateStore
     @Environment(PermissionCoordinator.self) private var permissions
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider()
+
             statusSection
 
-            if let transcript = stateStore.lastTranscript {
-                Divider()
-                transcriptSection(transcript)
-            }
-
-            Divider()
             actionsSection
         }
-        .frame(width: 280)
+        .frame(width: 260)
+        .padding(.vertical, 4)
     }
 
     private var header: some View {
@@ -44,7 +38,7 @@ struct MenuBarView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
     }
 
     private var statusColor: Color {
@@ -58,7 +52,7 @@ struct MenuBarView: View {
     }
 
     private var statusSection: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             if case .recording = stateStore.currentState {
                 Text(formatDuration(stateStore.recordingDuration))
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -89,62 +83,40 @@ struct MenuBarView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 10)
-    }
-
-    private func transcriptSection(_ transcript: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Last transcript")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .textCase(.uppercase)
-                .tracking(0.3)
-
-            Text(transcript)
-                .font(.system(size: 12))
-                .lineLimit(3)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(transcript, forType: .string)
-            } label: {
-                Label("Copy", systemImage: "doc.on.doc")
-                    .font(.system(size: 11))
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.blue)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 6)
     }
 
     private var actionsSection: some View {
         VStack(spacing: 0) {
+            // Start / Stop Recording
+            if stateStore.currentState == .recording {
+                Button {
+                    NotificationCenter.default.post(name: .hudStopTapped, object: nil)
+                } label: {
+                    PopoverRow(icon: "stop.circle.fill", iconColor: .red, title: "Stop Recording")
+                }
+                .buttonStyle(.plain)
+            } else if stateStore.currentState == .idle {
+                Button {
+                    NotificationCenter.default.post(name: .menuBarStartRecording, object: nil)
+                } label: {
+                    PopoverRow(icon: "record.circle", iconColor: .red, title: "Start Recording")
+                }
+                .buttonStyle(.plain)
+            }
+
             SettingsLink {
-                ActionRow(icon: "gearshape", iconColor: .gray, title: "Settings…")
+                PopoverRow(icon: "gearshape.fill", iconColor: .gray, title: "Settings…")
             }
             .buttonStyle(.plain)
-
-            Button {
-                openWindow(id: "history")
-                NSApp.activate(ignoringOtherApps: true)
-            } label: {
-                ActionRow(icon: "clock", iconColor: .blue, title: "History")
-            }
-            .buttonStyle(.plain)
-
-            Divider()
-                .padding(.horizontal, 10)
 
             Button {
                 NSApp.terminate(nil)
             } label: {
-                ActionRow(icon: "power", iconColor: .red, title: "Quit OpenFlow")
+                PopoverRow(icon: "power.circle.fill", iconColor: .red, title: "Quit OpenFlow")
             }
             .buttonStyle(.plain)
         }
-        .padding(.vertical, 4)
     }
 
     private func formatDuration(_ duration: TimeInterval) -> String {
@@ -154,9 +126,9 @@ struct MenuBarView: View {
     }
 }
 
-// MARK: - Action Row
+// MARK: - Popover Row (edge-to-edge highlight, no rounded corners)
 
-private struct ActionRow: View {
+private struct PopoverRow: View {
     let icon: String
     let iconColor: Color
     let title: String
@@ -165,21 +137,18 @@ private struct ActionRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 11))
+                .font(.system(size: 13))
                 .foregroundStyle(iconColor)
-                .frame(width: 16)
+                .frame(width: 18)
 
             Text(title)
-                .font(.system(size: 12.5))
+                .font(.system(size: 13))
             Spacer()
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(isHovering ? Color.primary.opacity(0.06) : .clear)
-        )
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity)
+        .background(isHovering ? Color.primary.opacity(0.08) : .clear)
         .contentShape(Rectangle())
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.1)) {

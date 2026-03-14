@@ -4,7 +4,6 @@ struct DictationSettingsView: View {
     @EnvironmentObject private var settingsManager: SettingsManager
     @State private var availableModels: [ModelManager.ModelInfo] = []
     @State private var isDownloading = false
-    @State private var downloadProgress: Double = 0
     @State private var downloadError: String?
     @State private var downloadSuccess: String?
     @State private var downloadingModelName: String?
@@ -124,13 +123,13 @@ struct DictationSettingsView: View {
                         }
 
                         if isThis {
-                            ProgressView(value: downloadProgress)
-                                .progressViewStyle(.linear)
-                                .tint(.blue)
-
-                            Text("Downloading… \(Int(downloadProgress * 100))%")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Downloading…")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -168,18 +167,13 @@ struct DictationSettingsView: View {
 
     private func downloadModel(name: String) {
         isDownloading = true
-        downloadProgress = 0
         downloadError = nil
         downloadSuccess = nil
         downloadingModelName = name
 
         Task {
             do {
-                try await modelManager.downloadModel(name: name) { progress in
-                    Task { @MainActor in
-                        downloadProgress = progress
-                    }
-                }
+                try await modelManager.downloadModel(name: name) { _ in }
                 refreshModels()
                 if let model = availableModels.first(where: { $0.name == name }) {
                     settingsManager.selectedModelName = model.name
